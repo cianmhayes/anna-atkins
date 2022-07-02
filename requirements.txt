@@ -1,2 +1,15 @@
 azure-storage-blob
+black
+colormath
+matplotlib
+numpy
+pillow==8.4.0
 requests
+scikit-image
+scikit-learn
+scipy
+selenium
+tensorboard
+torch
+torch-tb-profiler
+torchvision
