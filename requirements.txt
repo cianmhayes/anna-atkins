@@ -4,6 +4,7 @@ colormath
 matplotlib
 numpy
 pillow==8.4.0
+python-dotenv
 requests
 scikit-image
 scikit-learn

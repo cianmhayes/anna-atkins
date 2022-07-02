@@ -2,7 +2,7 @@ from conv_autoencoder import ConvAutoEncoder
 from blob_storage_image_dataset import BlobStorageImageDataset
 import torch
 import torch.onnx
-from torch import nn
+from torch import device, nn
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
 from torch.utils.data import random_split
@@ -11,11 +11,12 @@ import math
 import random
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
-
+from dotenv import load_dotenv
 
 class Trainer(object):
     def __init__(
         self,
+        device:torch.device,
         training_dataloader: DataLoader,
         validation_dataloader: DataLoader,
         output_root: str,
@@ -25,9 +26,11 @@ class Trainer(object):
         final_channels: int,
         learning_rate: float
     ) -> None:
+        self.device = device
         self.learning_rate = learning_rate
         self.epochs = 1000
         self.model = ConvAutoEncoder(kernel_size, hidden_layers, initial_channels, final_channels)
+        self.model.to(self.device)
         self.training_dataloader = training_dataloader
         self.validation_dataloader = validation_dataloader
         self.optimizer = self.configure_optimizers()
@@ -59,6 +62,7 @@ class Trainer(object):
         running_loss = 0.0
         batch_count = 0
         for _, data in enumerate(self.training_dataloader):
+            data = data.to(self.device)
             if len(data.size()) == 5:
                 bs, ncrops, c, h, w = data.size()
                 data = data.view(-1, c, h, w)
@@ -84,6 +88,7 @@ class Trainer(object):
         batch_count = 0
         with torch.no_grad():
             for i, data in enumerate(self.validation_dataloader):
+                data = data.to(self.device)
                 if len(data.size()) == 5:
                     bs, ncrops, c, h, w = data.size()
                     data = data.view(-1, c, h, w)
@@ -167,9 +172,16 @@ def main():
     output_root = os.path.join(script_folder, "output", datetime_str)
     if not os.path.exists(output_root):
         os.makedirs(output_root)
-    trainer = Trainer(train_loader, val_loader, output_root, 32, 2, 128, 32, 0.001)
+
+    device = torch.device("cpu")
+    if torch.cuda.is_available():
+        device = torch.device("cuda:0")
+    else:
+        print("No GPU")
+    trainer = Trainer(device, train_loader, val_loader, output_root, 32, 2, 128, 32, 0.001)
     trainer.run()
 
 
 if __name__ == "__main__":
+    load_dotenv()
     main()
