@@ -1,0 +1,29 @@
+{
+  "dependencies": {
+    "appInsights1": {
+      "type": "appInsights.sdk"
+    },
+    "storage1": {
+      "type": "storage.emulator",
+      "connectionId": "AzureWebJobsStorage"
+    },
+    "secrets1": {
+      "secretStore": null,
+      "resourceId": "/subscriptions/[parameters('subscriptionId')]/resourceGroups/[parameters('resourceGroupName')]/providers/Microsoft.KeyVault/vaults/AnnaAtkinsFunctionsvault",
+      "type": "secrets.keyVault",
+      "connectionId": "VaultUri"
+    },
+    "storage2": {
+      "secretStore": "AzureKeyVault",
+      "resourceId": "/subscriptions/[parameters('subscriptionId')]/resourceGroups/[parameters('resourceGroupName')]/providers/Microsoft.Storage/storageAccounts/cianhgeneraldata",
+      "type": "storage.azure",
+      "connectionId": "IMAGE_STORAGE_CONNECTION_STRING"
+    },
+    "cosmosdb1": {
+      "secretStore": "AzureKeyVault",
+      "resourceId": "/subscriptions/[parameters('subscriptionId')]/resourceGroups/[parameters('resourceGroupName')]/providers/Microsoft.DocumentDB/databaseAccounts/anna-atkins-metadata",
+      "type": "cosmosdb.azure",
+      "connectionId": "IMAGE_METADATA_CONNECTION_STRING"
+    }
+  }
+}
