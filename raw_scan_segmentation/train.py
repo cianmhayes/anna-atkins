@@ -19,19 +19,22 @@ class Trainer(object):
         training_dataloader: DataLoader,
         validation_dataloader: DataLoader,
         output_root: str,
-        output_channels: int,
         kernel_size: int,
+        hidden_layers: int,
+        initial_channels: int,
+        final_channels: int,
         learning_rate: float
     ) -> None:
         self.learning_rate = learning_rate
-        self.epochs = 100
-        self.model = ConvAutoEncoder(output_channels, kernel_size)
+        self.epochs = 1000
+        self.model = ConvAutoEncoder(kernel_size, hidden_layers, initial_channels, final_channels)
         self.training_dataloader = training_dataloader
         self.validation_dataloader = validation_dataloader
         self.optimizer = self.configure_optimizers()
+        self.lr_sched = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer)
         self.output_root = output_root
-        self.hyper_param_string = "cout{}_k{}_lr{}".format(
-            output_channels, kernel_size, learning_rate
+        self.hyper_param_string = "k{}_h{}_ic{}_fc{}_lr{}".format(
+            kernel_size, hidden_layers, initial_channels, final_channels, learning_rate
         )
         self.tb_writer = SummaryWriter(
             log_dir=self.output_root, comment=self.hyper_param_string
@@ -56,6 +59,9 @@ class Trainer(object):
         running_loss = 0.0
         batch_count = 0
         for _, data in enumerate(self.training_dataloader):
+            if len(data.size()) == 5:
+                bs, ncrops, c, h, w = data.size()
+                data = data.view(-1, c, h, w)
             self.optimizer.zero_grad()
             loss = self.training_step(data)
             loss.backward()
@@ -63,29 +69,38 @@ class Trainer(object):
             running_loss += loss.item()
             batch_count += 1
             if batch_count % 10 == 0:
-                print("    Train - batch {} epoch {} loss: {}".format(batch_count, epoch_num, running_loss / batch_count))
+                print(
+                    "    Train - batch {} epoch {} loss: {}".format(
+                        batch_count, epoch_num, running_loss / batch_count
+                    )
+                )
         if batch_count > 0:
             avg_loss = running_loss / batch_count
-            print("Train - epoch {} loss: {}".format(epoch_num, avg_loss))
             self.tb_writer.add_scalar("Loss/train", avg_loss, epoch_num)
+            print("Train - epoch {} loss: {}".format(epoch_num, avg_loss))
 
     def validation_phase(self, epoch_num: int) -> None:
         running_loss = 0.0
         batch_count = 0
-        for i, data in enumerate(self.validation_dataloader):
-            loss = self.validation_step(data)
-            running_loss += loss.item()
-            batch_count += 1
+        with torch.no_grad():
+            for i, data in enumerate(self.validation_dataloader):
+                if len(data.size()) == 5:
+                    bs, ncrops, c, h, w = data.size()
+                    data = data.view(-1, c, h, w)
+                loss = self.validation_step(data)
+                running_loss += loss.item()
+                batch_count += 1
         if batch_count > 0:
             avg_loss = running_loss / batch_count
-            print("Test - epoch {} loss: {}".format(epoch_num, avg_loss))
+            self.lr_sched.step(avg_loss)
             self.tb_writer.add_scalar("Loss/test", avg_loss, epoch_num)
-        if (
-            self.lowest_training_loss == None
-            or running_loss < self.lowest_training_loss
-        ):
-            self.lowest_training_loss = running_loss
-            self.export_model(epoch_num)
+            print("Test - epoch {} loss: {}".format(epoch_num, avg_loss))
+            if (
+                self.lowest_training_loss == None
+                or running_loss < self.lowest_training_loss
+            ):
+                self.lowest_training_loss = running_loss
+                self.export_model(epoch_num)
 
     def export_model(self, epoch_num: int) -> None:
         epoch_folder = os.path.join(self.output_root, str(epoch_num))
@@ -115,8 +130,17 @@ class Trainer(object):
             self.training_phase(epoch)
             self.validation_phase(epoch)
 
+# kernel to input dim map
+KERNEL_TO_INPUT_DIM = {
+    8: 400,
+    12: 396,
+    16: 400,
+    20: 400,
+    24: 396,
+    32: 400,
+}
 
-if __name__ == "__main__":
+def main():
     torch.manual_seed(0)
     random.seed(0)
     # data
@@ -129,27 +153,23 @@ if __name__ == "__main__":
         storage_connection_string,
         storage_account_container,
         "unprocessed_1000px/",
-        404,
+        800,
         cache_dir,
     )
     dataset_size = len(dataset)
-    train_size = math.floor(dataset_size * 0.8)
+    train_size = math.floor(dataset_size * 0.65)
     train, val = random_split(dataset, [train_size, dataset_size - train_size])
 
-    train_loader = DataLoader(train, batch_size=8)
-    val_loader = DataLoader(val, batch_size=8)
+    train_loader = DataLoader(train, batch_size=16)
+    val_loader = DataLoader(val, batch_size=16)
 
     datetime_str = datetime.now().strftime("%Y%m%d_%H%M")
     output_root = os.path.join(script_folder, "output", datetime_str)
     if not os.path.exists(output_root):
         os.makedirs(output_root)
-    output_channel_sizes = [16, 24, 32, 64]
-    kernel_sizes = [8, 12, 16, 24]
-    learning_rates = [1e-2, 1e-3, 1e-4, 1e-5]
-    for ocs in output_channel_sizes:
-        for ks in kernel_sizes:
-            for lr in learning_rates:
-                print("Training - Output channel: {}, Kernel: {}, Learning Rate: {}".format(ocs, ks, lr))
-                print("====================================================================================================")
-                trainer = Trainer(train_loader, val_loader, output_root, ocs, ks, lr)
-                trainer.run()
+    trainer = Trainer(train_loader, val_loader, output_root, 32, 2, 128, 32, 0.001)
+    trainer.run()
+
+
+if __name__ == "__main__":
+    main()

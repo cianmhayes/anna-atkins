@@ -1,11 +1,13 @@
 import io
 import os
+import torch
 from typing import Iterable
 from PIL import Image
 from azure.storage.blob import BlobClient, ContainerClient
 from torch.utils.data import Dataset
 import hashlib
-from torchvision.transforms import Compose, ToTensor, RandomCrop
+from torchvision.transforms import Compose, ToTensor, FiveCrop, ToTensor, Lambda
+
 
 def list_blobs(
     connection_string: str, container_name: str, blob_prefix: str
@@ -31,7 +33,16 @@ class BlobStorageImageDataset(Dataset):
         self.blob_names = list_blobs(connection_string, container_name, blob_prefix)
         self.cache_dir = cache_dir
         if crop_size:
-            self.transform = Compose([RandomCrop(crop_size), ToTensor()])
+            self.transform = Compose(
+                [
+                    FiveCrop(crop_size),
+                    Lambda(
+                        lambda crops: torch.stack(
+                            [ToTensor()(crop) for crop in crops]
+                        )
+                    ),
+                ]
+            )
         else:
             self.transform = ToTensor()
 
