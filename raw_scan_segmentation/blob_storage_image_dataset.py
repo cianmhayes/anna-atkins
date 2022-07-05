@@ -61,7 +61,6 @@ class BlobStorageImageDataset(Dataset):
             blob_name=blob_name,
         )
         blob_data = blob_client.download_blob()
-        # properties = blob_client.get_blob_properties()
         bio = io.BytesIO()
         blob_data.readinto(bio)
         img = Image.open(bio)

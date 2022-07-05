@@ -13,4 +13,5 @@ selenium
 tensorboard
 torch
 torch-tb-profiler
+torchmetrics
 torchvision

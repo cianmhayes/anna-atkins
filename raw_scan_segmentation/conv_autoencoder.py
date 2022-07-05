@@ -1,4 +1,14 @@
+import torch
 from torch import nn
+from typing import NamedTuple
+
+class PatchConvAutoEncoderParameters(NamedTuple):
+    kernel_size: int
+    hidden_layers: int
+    initial_channels: int
+    final_channels: int
+    input_channels: int = 3
+    
 
 class ConvEncoder(nn.Module):
     def __init__(
@@ -59,21 +69,22 @@ class ConvDecoder(nn.Module):
 class ConvAutoEncoder(nn.Module):
     def __init__(
         self,
-        kernel_size: int,
-        hidden_layers: int,
-        initial_channels: int,
-        final_channels: int,
-        input_channels: int = 3,
+        parameters:PatchConvAutoEncoderParameters
     ):
         super().__init__()
         self.encoder = ConvEncoder(
-            kernel_size, hidden_layers, initial_channels, final_channels, input_channels
+            parameters.kernel_size, parameters.hidden_layers, parameters.initial_channels, parameters.final_channels, parameters.input_channels
         )
         self.decoder = ConvDecoder(
-            kernel_size, hidden_layers, initial_channels, final_channels, input_channels
+            parameters.kernel_size, parameters.hidden_layers, parameters.initial_channels, parameters.final_channels, parameters.input_channels
         )
 
     def forward(self, x):
         embedding = self.encoder(x)
         reconstructed = self.decoder(embedding)
         return embedding, reconstructed
+
+def load_pretrained_autoencoder_from_checkpoint(parameters:PatchConvAutoEncoderParameters, path:str) -> ConvAutoEncoder:
+    model = ConvAutoEncoder(parameters)
+    model.load_state_dict(torch.load(path))
+    return model
